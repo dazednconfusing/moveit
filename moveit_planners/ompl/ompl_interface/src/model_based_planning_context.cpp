@@ -372,7 +372,7 @@ void ompl_interface::ModelBasedPlanningContext::useConfig()
     ompl_simple_setup_->setPlannerAllocator(
         [planner_name, &spec = this->spec_, allocator = spec_.planner_selector_(type)](
             const ompl::base::SpaceInformationPtr& si) { return allocator(si, planner_name, spec); });
-    ROS_INFO_NAMED(LOGNAME,
+    ROS_DEBUG_NAMED(LOGNAME,
                    "Planner configuration '%s' will use planner '%s'. "
                    "Additional configuration parameters will be set when the planner is constructed.",
                    name_.c_str(), type.c_str());
