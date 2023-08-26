@@ -40,6 +40,20 @@
 
 namespace constraint_samplers
 {
+random_numbers::RandomNumberGenerator createSeededRNG(const std::string& seed_param)
+{
+  int rng_seed;
+  if (ros::param::get(seed_param, rng_seed))
+  {
+    ROS_DEBUG_STREAM_NAMED("constraint_samplers", "Creating random number generator with seed " << rng_seed);
+    return random_numbers::RandomNumberGenerator(rng_seed);
+  }
+  else
+  {
+    return random_numbers::RandomNumberGenerator();
+  }
+}
+
 bool JointConstraintSampler::configure(const moveit_msgs::Constraints& constr)
 {
   // construct the constraints
@@ -175,11 +189,6 @@ bool JointConstraintSampler::sample(moveit::core::RobotState& state,
 
   // we are always successful
   return true;
-}
-
-bool JointConstraintSampler::project(moveit::core::RobotState& state, unsigned int max_attempts)
-{
-  return sample(state, state, max_attempts);
 }
 
 void JointConstraintSampler::clear()
@@ -550,11 +559,11 @@ void samplingIkCallbackFnAdapter(moveit::core::RobotState* state, const moveit::
 bool IKConstraintSampler::sample(moveit::core::RobotState& state, const moveit::core::RobotState& reference_state,
                                  unsigned int max_attempts)
 {
-  return sampleHelper(state, reference_state, max_attempts, false);
+  return sampleHelper(state, reference_state, max_attempts);
 }
 
 bool IKConstraintSampler::sampleHelper(moveit::core::RobotState& state, const moveit::core::RobotState& reference_state,
-                                       unsigned int max_attempts, bool project)
+                                       unsigned int max_attempts)
 {
   if (!is_valid_)
   {
@@ -567,7 +576,7 @@ bool IKConstraintSampler::sampleHelper(moveit::core::RobotState& state, const mo
     adapted_ik_validity_callback = [this, state_ptr = &state](const geometry_msgs::Pose& /*unused*/,
                                                               const std::vector<double>& joints,
                                                               moveit_msgs::MoveItErrorCodes& error_code) {
-      return samplingIkCallbackFnAdapter(state_ptr, jmg_, group_state_validity_callback_, joints, error_code);
+      samplingIkCallbackFnAdapter(state_ptr, jmg_, group_state_validity_callback_, joints, error_code);
     };
 
   for (unsigned int a = 0; a < max_attempts; ++a)
@@ -612,15 +621,10 @@ bool IKConstraintSampler::sampleHelper(moveit::core::RobotState& state, const mo
     ik_query.orientation.z = quat.z();
     ik_query.orientation.w = quat.w();
 
-    if (callIK(ik_query, adapted_ik_validity_callback, ik_timeout_, state, project && a == 0))
+    if (callIK(ik_query, adapted_ik_validity_callback, ik_timeout_, state, a == 0))
       return true;
   }
   return false;
-}
-
-bool IKConstraintSampler::project(moveit::core::RobotState& state, unsigned int max_attempts)
-{
-  return sampleHelper(state, state, max_attempts, true);
 }
 
 bool IKConstraintSampler::validate(moveit::core::RobotState& state) const

@@ -34,14 +34,17 @@ RUN \
     git clone --depth 1 --branch master https://github.com/ros-planning/moveit_resources src/moveit_resources && \
     #
     # Download all dependencies of MoveIt
-    rosdep update && \
+    rosdep update $(test "${ROS_DISTRO}" = "melodic" && echo "--include-eol-distros") && \
     DEBIAN_FRONTEND=noninteractive \
     rosdep install -y --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} --as-root=apt:false && \
     # Remove the source code from this container
     rm -rf src && \
     #
     # Clear apt-cache to reduce image size
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    # Globally disable git security
+    # https://github.blog/2022-04-12-git-security-vulnerability-announced
+    git config --global --add safe.directory "*"
 
 # Continous Integration Setting
 ENV IN_DOCKER 1
