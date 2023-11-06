@@ -799,35 +799,10 @@ void RobotState::updateStateWithLinkAt(const LinkModel* link, const Eigen::Isome
 
 const LinkModel* RobotState::getRigidlyConnectedParentLinkModel(const std::string& frame, Eigen::Isometry3d* transform,
                                                                 const moveit::core::JointModelGroup* jmg) const
+
 {
   const moveit::core::LinkModel* link{ nullptr };
-
-  size_t idx = 0;
-  if ((idx = frame.find('/')) != std::string::npos)
-  {  // resolve sub frame
-    std::string object{ frame.substr(0, idx) };
-    if (!hasAttachedBody(object))
-      return nullptr;
-    auto body{ getAttachedBody(object) };
-    bool found = false;
-    if (transform)
-      *transform = body->getSubframeTransform(frame, &found);
-    else
-      body->getSubframeTransform(frame, &found);
-    if (!found)
-      return nullptr;
-    if (transform)  // prepend the body transform
-      *transform = body->getPose() * *transform;
-    link = body->getAttachedLink();
-  }
-  else if (hasAttachedBody(frame))
-  {
-    auto body{ getAttachedBody(frame) };
-    if (transform)
-      *transform = body->getPose();
-    link = body->getAttachedLink();
-  }
-  else if (getRobotModel()->hasLinkModel(frame))
+  if (getRobotModel()->hasLinkModel(frame))
   {
     link = getLinkModel(frame);
     if (transform)
@@ -835,6 +810,35 @@ const LinkModel* RobotState::getRigidlyConnectedParentLinkModel(const std::strin
     if (!link)
       return nullptr;
   }
+  else
+  {
+    size_t idx = 0;
+    if ((idx = frame.find('/')) != std::string::npos)
+    {  // resolve sub frame
+      std::string object{ frame.substr(0, idx) };
+      if (!hasAttachedBody(object))
+        return nullptr;
+      auto body{ getAttachedBody(object) };
+      bool found = false;
+      if (transform)
+        *transform = body->getSubframeTransform(frame, &found);
+      else
+        body->getSubframeTransform(frame, &found);
+      if (!found)
+        return nullptr;
+      if (transform)  // prepend the body transform
+        *transform = body->getPose() * *transform;
+      link = body->getAttachedLink();
+    }
+    else if (hasAttachedBody(frame))
+    {
+      auto body{ getAttachedBody(frame) };
+      if (transform)
+        *transform = body->getPose();
+      link = body->getAttachedLink();
+    }
+  }
+
   // link is valid and transform describes pose of frame w.r.t. global frame
   Eigen::Isometry3d link_transform;
   auto* parent = getRobotModel()->getRigidlyConnectedParentLinkModel(link, link_transform, jmg);
@@ -1137,19 +1141,30 @@ const Eigen::Isometry3d& RobotState::getFrameTransform(const std::string& frame_
 const Eigen::Isometry3d& RobotState::getFrameInfo(const std::string& frame_id, const LinkModel*& robot_link,
                                                   bool& frame_found) const
 {
+  // ROS_WARN_NAMED(LOGNAME, "getFrameInfo frame id :  %s.", frame_id.c_str());
+  // ROS_WARN_NAMED(LOGNAME, "getFrameInfo robot model frame id :  %s.", robot_model_->getModelFrame().c_str());
+  // ROS_WARN_NAMED(LOGNAME, "getFrameInfo robot root link :  %s.", robot_model_->getRootLink()->getName().c_str());
   if (!frame_id.empty() && frame_id[0] == '/')
     return getFrameInfo(frame_id.substr(1), robot_link, frame_found);
 
   static const Eigen::Isometry3d IDENTITY_TRANSFORM = Eigen::Isometry3d::Identity();
   if (frame_id == robot_model_->getModelFrame())
   {
+    // ROS_WARN_NAMED(LOGNAME, "getFrameInfo 1 ");
     robot_link = robot_model_->getRootLink();
     frame_found = true;
     return IDENTITY_TRANSFORM;
   }
   if ((robot_link = robot_model_->getLinkModel(frame_id, &frame_found)))
   {
+    // ROS_WARN_NAMED(LOGNAME, "getFrameInfo 2 ");
+    // ROS_WARN_NAMED(LOGNAME, "getFrameInfo robot  link :  %s.", robot_link->getName().c_str());
+    // ROS_WARN_NAMED(LOGNAME, "index: %i.", robot_link->getLinkIndex());
+
+    // printTransforms();
     BOOST_VERIFY(checkLinkTransforms());
+    // auto tf = global_link_transforms_[robot_link->getLinkIndex()];
+    // ROS_WARN_NAMED(LOGNAME, "reached");
     return global_link_transforms_[robot_link->getLinkIndex()];
   }
   robot_link = nullptr;
@@ -1158,6 +1173,7 @@ const Eigen::Isometry3d& RobotState::getFrameInfo(const std::string& frame_id, c
   const auto jt = attached_body_map_.find(frame_id);
   if (jt != attached_body_map_.end())
   {
+    ROS_WARN_NAMED(LOGNAME, "getFrameInfo 3 ");
     const Eigen::Isometry3d& transform = jt->second->getGlobalPose();
     robot_link = jt->second->getAttachedLink();
     frame_found = true;
@@ -1168,6 +1184,7 @@ const Eigen::Isometry3d& RobotState::getFrameInfo(const std::string& frame_id, c
   // Check if an AttachedBody has a subframe with name frame_id
   for (const auto& body : attached_body_map_)
   {
+    ROS_WARN_NAMED(LOGNAME, "getFrameInfo 5 ");
     const Eigen::Isometry3d& transform = body.second->getGlobalSubframeTransform(frame_id, &frame_found);
     if (frame_found)
     {
